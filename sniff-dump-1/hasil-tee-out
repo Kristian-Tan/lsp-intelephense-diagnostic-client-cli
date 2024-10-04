@@ -1,0 +1,21 @@
+Content-Length: 111
+
+{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3,"message":"Initialising intelephense 1.12.6"}}Content-Length: 125
+
+{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3,"message":"Reading state from /tmp/intelephense/36632feb."}}Content-Length: 99
+
+{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3,"message":"Initialised in 18 ms"}}Content-Length: 794
+
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"textDocumentSync":2,"documentSymbolProvider":true,"workspaceSymbolProvider":true,"completionProvider":{"triggerCharacters":["$",">",":","\\","/","'","\"","*",".","<"],"resolveProvider":true},"signatureHelpProvider":{"triggerCharacters":["(",",",":"]},"definitionProvider":true,"documentFormattingProvider":false,"documentRangeFormattingProvider":false,"referencesProvider":true,"hoverProvider":true,"documentHighlightProvider":true,"foldingRangeProvider":false,"implementationProvider":false,"declarationProvider":false,"workspace":{"workspaceFolders":{"supported":true,"changeNotifications":true}},"renameProvider":false,"typeDefinitionProvider":false,"selectionRangeProvider":false,"codeActionProvider":false,"typeHierarchyProvider":false}}}Content-Length: 319
+
+{"jsonrpc":"2.0","id":0,"method":"workspace/configuration","params":{"items":[{"section":"intelephense"},{"section":"intelephense","scopeUri":"file:///home/kristian/mnt/dev239/var/www/html/neowebservice_kristian/api"},{"section":"intelephense","scopeUri":"file:///home/kristian/tools/dahua/dokumentasi-dahua/voices"}]}}Content-Length: 487
+
+{"jsonrpc":"2.0","id":1,"method":"client/registerCapability","params":{"registrations":[{"id":"f5b46eee-8467-47ba-a6c0-e226a6cfd5fa","method":"textDocument/formatting","registerOptions":{"documentSelector":[{"language":"php","scheme":"file"},{"language":"php","scheme":"untitled"}]}},{"id":"361e6653-74ce-4ee6-90f0-f8325ec4f9b7","method":"textDocument/rangeFormatting","registerOptions":{"documentSelector":[{"language":"php","scheme":"file"},{"language":"php","scheme":"untitled"}]}}]}}Content-Length: 225
+
+{"jsonrpc":"2.0","id":2,"method":"client/registerCapability","params":{"registrations":[{"id":"0cc7aef5-5a5e-4aa0-8cfb-656b3861d3ce","method":"workspace/didChangeConfiguration","registerOptions":{"section":"intelephense"}}]}}Content-Length: 243
+
+{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3,"message":"Searching file:///home/kristian/.cache/sublime-text/Package%20Storage/LSP-intelephense/22.8.0/language-server/node_modules/intelephense/lib/stub for files to index."}}Content-Length: 181
+
+{"jsonrpc":"2.0","method":"window/logMessage","params":{"type":3,"message":"Searching file:///home/kristian/mnt/dev239/var/www/html/neowebservice_kristian/api for files to index."}}Content-Length: 387
+
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///home/kristian/mnt/dev239/home/kristian/docker-node-alpine-intelephense/docker_volumes/home_kristian/test.php","diagnostics":[{"range":{"start":{"line":0,"character":18},"end":{"line":0,"character":19}},"message":"Unexpected 'Name'. Expected ','.","severity":1,"code":"P1001","source":"intelephense"}]}}
