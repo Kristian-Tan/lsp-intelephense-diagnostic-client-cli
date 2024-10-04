@@ -13,9 +13,7 @@ import sys
 # cd /var/www/html/uks_kristian/web
 # python3 intelephense-cli.py '' '["vendor/**/*.php","class/adodb5/**/*.php","function/phpMailer/*.php"]'
 
-# config:
 workingDirectory = os.getcwd()
-# end config
 
 # get files to be checked
 if len(sys.argv) < 2:
@@ -62,25 +60,6 @@ if len(arrFileToBeChecked) == 0:
 arrFileOpenedInLspServer = []
 arrDiagnosticResult = []
 
-# def openForDiagnostic():
-#     if len(arrFileToBeChecked) == 0:
-#         print("finished!")
-#         print(arrDiagnosticResult)
-#         exit()
-
-#     filename = arrFileToBeChecked.pop(0)
-#     with open(filename) as f: content = f.read()
-
-#     sendJsonRpc(sock=sockClient, method="textDocument/didOpen", params={
-#         "textDocument":{
-#             "uri":"file://"+filename,
-#             "languageId":"php",
-#             "version":0,
-#             "text":content,
-#         },
-#     })
-#     arrFileOpenedInLspServer.append(filename)
-
 def openForDiagnostic():
     if len(arrFileToBeChecked) == 0:
         return False
@@ -99,32 +78,6 @@ def openForDiagnostic():
     arrFileOpenedInLspServer.append(filename)
     return True
 
-# def receiveDiagnostic(diagnosticData): # diagnosticData tidak boleh kosong, dapat dari hasil message["params"] dari method "textDocument/publishDiagnostics"
-#     # close semua file
-#     for filename in arrFileOpenedInLspServer:
-#         sendJsonRpc(sock=sockClient, method="textDocument/didClose", params={
-#             "textDocument":{
-#                 "uri":"file://"+filename,
-#             },
-#         })
-
-#     # simpan hasil diagnostic
-#     for diag in diagnosticData.get("params",{"diagnostics":[]}).get("diagnostics"):
-#         arrDiagnosticResult.append({
-#             "filename":diagnosticData.get("uri",None),
-#             "lineStart":diag.get("range").get("start").get("line"),
-#             "lineEnd":diag.get("range").get("end").get("line"),
-#             "characterStart":diag.get("range").get("start").get("character"),
-#             "characterEnd":diag.get("range").get("end").get("character"),
-#             "message":diag.get("message"),
-#             "severity":diag.get("severity"),
-#             "code":diag.get("code"),
-#             "source":diag.get("source"),
-#         })
-
-#     # lakukan openForDiagnostic
-#     openForDiagnostic()
-
 def receiveDiagnostic(diagnosticData):
     filename = diagnosticData.get("uri")
     sendJsonRpc(sock=sockClient, method="textDocument/didClose", params={
@@ -136,7 +89,7 @@ def receiveDiagnostic(diagnosticData):
     if filename in arrFileOpenedInLspServer:
         arrFileOpenedInLspServer.remove(filename)
 
-    # simpan hasil diagnostic
+    # save diagnostic result to an array
     for diag in diagnosticData.get("diagnostics",[]):
         arrDiagnosticResult.append({
             "filename":diagnosticData.get("uri",None),
@@ -158,21 +111,11 @@ def receiveDiagnostic(diagnosticData):
         print(arrDiagnosticResult)
         exit()
 
-
-# algoritma enqueue dequeue file ke LSP diagnostic:
-# ketika file di LSP server kosong (initial state) => masukkan file dari antrian file yg blm di diagnostic ke LSP (openForDiagnostic)
-# ketika terima diagnostic kosong => ignore, lakukan openForDiagnostic
-# ketika terima diagnostic non-kosong => close (hapus dari LSP) semua file yg ada di diagnostic, simpan hasil diagnostic, lakukan openForDiagnostic
-
-
-
-
 # communication with LSP server
 
 bufferSize = 4092
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# sock.bind(("0.0.0.0", 6641))
-sock.bind(("0.0.0.0", 0))
+sock.bind(("0.0.0.0", 0)) # bind to port 0, this will make python try to find unused port to bind to (portnumber will returned below)
 portnumber = sock.getsockname()[1]
 sock.listen(1)
 
@@ -203,7 +146,7 @@ def sendJsonRpc(sock, idparam=None, method=None, params=None, result=None, inclu
         del dictJsonRpc["params"]
     if result == None and "result" not in includes:
         del dictJsonRpc["result"]
-        # NOTE: notification tidak boleh punya ID (akan menyebabkan error)
+        # NOTE: jsonprc notification does not have id field (will throw error)
     return sendLspMsg(sock, json.dumps(dictJsonRpc))
 
 def recvUntil(sock, substring):
@@ -255,8 +198,6 @@ def eventHandler(sockClient, message):
         sendJsonRpc(sock=sockClient, idparam=message.get("id",None), result=None, includes=["result"])
 
     elif message.get("id",None) == None and message.get("method",None) == "indexingEnded": # when indexing has ended, we can start opening first file
-        # openForDiagnostic()
-
         isMasihAdaFile = True
         while isMasihAdaFile :
             isMasihAdaFile = openForDiagnostic()
@@ -276,11 +217,10 @@ def eventHandler(sockClient, message):
     else:
         raise Exception("unimplemented event!")
 
-# NOTE: sepertinya memang tidak tampil pesan error karena ada 
+# NOTE: textDocument/publishDiagnostics may sometime not show because this line is sent from server:
 # Reading state from /tmp/intelephense/3f29bfe2.
-# jadi dia tidak reindex
-
-# NOTE: agar diagnostic muncul, harus initializationOption.clearCache=true, lalu hapus state di 'rm -r /tmp/intelephense/*' didalam docker
+# so maybe we need to force intelephense to reindex by removing /tmp/intelephense/* directory content
+# also, we should set initializationOption.clearCache=true to force reindex, then clear state by running 'rm -r /tmp/intelephense/*'
 
 sendJsonRpc(sock=sockClient, idparam=1, method="initialize", params={
     "processId": 1,
