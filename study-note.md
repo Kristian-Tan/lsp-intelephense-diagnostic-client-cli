@@ -1,8 +1,65 @@
+## REFERENCE:
+https://en.wikipedia.org/wiki/JSON-RPC
 https://microsoft.github.io/language-server-protocol/overviews/lsp/overview/
 https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/
-
 https://medium.com/@malintha1996/understanding-the-language-server-protocol-5c0ba3ac83d2
 
+## JSONRPC
+
+- Protocol to call RPC (remote procedure call) using JSON. Can be thought as HTTP REST API but without HTTP as envelope (do not have HTTP url, HTTP method, HTTP headers).
+- Server and client communicates by sending JSON across an established data stream (e.g.: TCP socket, STDIO pipe).
+- An RPC (remote procedure call) can be either a **procedure** call (the request must answered by a response), or a **notification** call (the request does not need to be answered)
+- Both procedure call or notification call can be sent from server to client or from client to server, e.g.: this sequence of communication is possible:
+    - SERVER: CALL Method1(param1)
+    - CLIENT: RETURN_FROM Method1
+    - CLIENT: CALL Method2(param2)
+    - SERVER: RETURN_FROM Method2
+- Also, procedure call or notification call can be done asynchronously, e.g.: this sequence of communication is possible:
+    - SERVER: CALL Method1(param1)
+    - SERVER: CALL Method2(param2)
+    - CLIENT: RETURN_FROM Method2
+    - CLIENT: RETURN_FROM Method1
+- The act of initiating procedure call or notification call is called **request**
+- The act of returning result of a procedure call is called **response**
+
+#### Procedure Call
+- example: calling ```ConcatenateString("Hello","World")``` returns ```"HelloWorld"```
+- request:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 101,
+  "method": "ConcatenateString",
+  "params": {
+    "parameter1": "Hello",
+    "parameter2": "World"
+  }
+}
+```
+- response:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 101,
+  "result": "HelloWorld"
+}
+```
+- or in case there's an error:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 101,
+  "error": "string too long!"
+}
+```
+- procedure call request **must** have "id" and "method"
+    - "id" is used to identify which one is the return of which call
+    - "method" is used to identify what method/function is being called
+    - "params" is optional, may contain anything, e.g.: json object/array/string/int/boolean/null
+- procedure call response **must** have "id" and ("result" or "error")
+
+#### Notification Call
+- example: notifying
 
 {
   "jsonrpc": "2.0",
