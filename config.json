@@ -1,0 +1,18 @@
+{
+    "workingDirectory": "/var/www/html/uks_kristian/web",
+    "outputFile": "/var/www/html/uks_kristian/output.json",
+    "languageId": "php",
+    "includes": [
+        "/**/*.php"
+    ],
+    "excludes": [
+        "vendor/**/*.php",
+        "class/adodb5/**/*.php",
+        "function/phpMailer/*.php"
+    ],
+    "lspServerCommand": ["docker","exec","intelephense","intelephense","--socket={PORT_NUMBER}"],
+    "lspServerStdout": "/tmp/lsp-server-stdout",
+    "lspServerStderr": "/tmp/lsp-server-stderr",
+    "lspClientPort": 0,
+    "lspClientAddress": "0.0.0.0"
+}

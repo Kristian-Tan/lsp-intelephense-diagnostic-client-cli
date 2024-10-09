@@ -7,44 +7,63 @@ import subprocess
 import os
 import glob
 import sys
+import hashlib
 
-
-# example usage:
-# cd /var/www/html/uks_kristian/web
-# python3 intelephense-cli.py '' '["vendor/**/*.php","class/adodb5/**/*.php","function/phpMailer/*.php"]'
-
-workingDirectory = os.getcwd()
-
-# get files to be checked
-if len(sys.argv) < 2:
-    jsonGlobFilesToBeChecked = '["/**/*.php"]'
+## config file
+# example config file
+"""
+{
+    "workingDirectory": "/var/www/html/uks_kristian/web",
+    "outputFile": "/var/www/html/uks_kristian/output.json",
+    "languageId": "php",
+    "includes": [
+        "/**/*.php",
+    ],
+    "excludes": [
+        "vendor/**/*.php",
+        "class/adodb5/**/*.php",
+        "function/phpMailer/*.php"
+    ],
+    "lspServerCommand": ["docker","exec","intelephense","intelephense","--socket={PORT_NUMBER}"],
+    "lspServerStdout": "/tmp/lsp-server-stdout",
+    "lspServerStderr": "/tmp/lsp-server-stderr",
+    "lspClientPort": 0,
+    "lspClientAddress": "0.0.0.0",
+    "lspClientBuffer": 4092
+}
+"""
+if len(sys.argv) == 2:
+    configFilename = sys.argv[1]
+    with open(configFilename) as f: configContent = f.read()
+    jsonConfig = json.loads(configContent)
 else:
-    jsonGlobFilesToBeChecked = sys.argv[1]
+    raise Exception("config file not supplied")
+    jsonConfig = {}
 
-if jsonGlobFilesToBeChecked == '':
-    jsonGlobFilesToBeChecked = '["/**/*.php"]'
 
-jsonGlobFilesToBeChecked = json.loads(jsonGlobFilesToBeChecked)
+workingDirectory = jsonConfig.get("workingDirectory", os.getcwd())
+outputFile = jsonConfig.get("outputFile", workingDirectory+"/output.json")
+languageId = jsonConfig.get("languageId", "php")
+globFilesIncludes = jsonConfig.get("includes", ["/**/*."+languageId])
+globFilesExcludes = jsonConfig.get("excludes", [])
+lspServerCommand = jsonConfig.get("lspServerCommand", ["intelephense","--socket={PORT_NUMBER}"])
+lspServerStdout = jsonConfig.get("lspServerStdout", None)
+lspServerStderr = jsonConfig.get("lspServerStderr", None)
+lspClientPort = jsonConfig.get("lspClientPort", 0)
+lspClientAddress = jsonConfig.get("lspClientAddress", "0.0.0.0")
+# lspClientBuffer = jsonConfig.get("lspClientBuffer", 4092)
+
 
 arrFileToBeChecked = []
-for globFile in jsonGlobFilesToBeChecked:
+for globFile in globFilesIncludes:
     for filename in glob.glob(workingDirectory+"/"+globFile, recursive=True):
         arrFileToBeChecked.append(filename)
 # exit()
 
-# get files to be ignored
-if len(sys.argv) < 3:
-    jsonGlobFilesToBeIgnored = '[]'
-else:
-    jsonGlobFilesToBeIgnored = sys.argv[2]
-
-if jsonGlobFilesToBeChecked == '':
-    jsonGlobFilesToBeChecked = '["/**/*.php"]'
-
-jsonGlobFilesToBeIgnored = json.loads(jsonGlobFilesToBeIgnored)
+globFilesExcludes
 
 arrFileToBeIgnored = []
-for globFile in jsonGlobFilesToBeIgnored:
+for globFile in globFilesExcludes:
     for filename in glob.glob(workingDirectory+"/"+globFile, recursive=True):
         print(filename)
         if filename in arrFileToBeChecked:
@@ -59,6 +78,7 @@ if len(arrFileToBeChecked) == 0:
 
 arrFileOpenedInLspServer = []
 arrDiagnosticResult = []
+arrDiagnosticHash = []
 
 def openForDiagnostic():
     if len(arrFileToBeChecked) == 0:
@@ -70,7 +90,7 @@ def openForDiagnostic():
     sendJsonRpc(sock=sockClient, method="textDocument/didOpen", params={
         "textDocument":{
             "uri":"file://"+filename,
-            "languageId":"php",
+            "languageId":languageId,
             "version":0,
             "text":content,
         },
@@ -91,8 +111,8 @@ def receiveDiagnostic(diagnosticData):
 
     # save diagnostic result to an array
     for diag in diagnosticData.get("diagnostics",[]):
-        arrDiagnosticResult.append({
-            "filename":diagnosticData.get("uri",None),
+        diagObj = {
+            "filename":diagnosticData.get("uri","").replace("file://",""),
             "lineStart":diag.get("range").get("start").get("line"),
             "lineEnd":diag.get("range").get("end").get("line"),
             "characterStart":diag.get("range").get("start").get("character"),
@@ -101,7 +121,11 @@ def receiveDiagnostic(diagnosticData):
             "severity":diag.get("severity"),
             "code":diag.get("code"),
             "source":diag.get("source"),
-        })
+        }
+        diagHash = hashlib.md5(json.dumps(diagObj).encode()).hexdigest()
+        if diagHash not in arrDiagnosticHash:
+            arrDiagnosticResult.append(diagObj)
+            arrDiagnosticHash.append(diagHash)
 
     print("got new diagnostic data")
     print(arrDiagnosticResult)
@@ -109,17 +133,24 @@ def receiveDiagnostic(diagnosticData):
     if len(arrFileOpenedInLspServer) == 0:
         print("finished!")
         print(arrDiagnosticResult)
+        with open(outputFile, "w") as f:
+            f.write(json.dumps(arrDiagnosticResult))
         exit()
 
 # communication with LSP server
 
-bufferSize = 4092
+# bufferSize = lspClientBuffer
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind(("0.0.0.0", 0)) # bind to port 0, this will make python try to find unused port to bind to (portnumber will returned below)
+sock.bind((lspClientAddress, lspClientPort)) # if bind to port 0, then this will make python try to find unused port to bind to (portnumber will returned below)
 portnumber = sock.getsockname()[1]
 sock.listen(1)
 
-p = subprocess.Popen(['docker','exec','intelephense','intelephense','--socket='+str(portnumber) ], stdout=open("/tmp/stdout1","w"),stderr=open("/tmp/stderr1","w"))
+lspServerCommand = [ x.replace("{PORT_NUMBER}",str(portnumber)) for x in lspServerCommand ]
+if lspServerStdout != None:
+    lspServerStdout = open(lspServerStdout, "w")
+if lspServerStderr != None:
+    lspServerStderr = open(lspServerStderr, "w")
+p = subprocess.Popen(lspServerCommand, stdout=lspServerStdout,stderr=lspServerStderr)
 
 sockClient, addr = sock.accept()
 print("CLIENT CONNECTED! ADDRESS: ", addr)
