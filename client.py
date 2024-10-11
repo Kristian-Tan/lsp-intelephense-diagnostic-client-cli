@@ -57,11 +57,14 @@ debugPrintTargetFiles = jsonConfig.get("debugPrintTargetFiles", True)
 debugPrintLspComm = jsonConfig.get("debugPrintLspComm", False)
 debugPrintDiagnostics = jsonConfig.get("debugPrintDiagnostics", False)
 debugPrintProgress = jsonConfig.get("debugPrintProgress", True)
+debugPrintAction = jsonConfig.get("debugPrintAction", False)
 dryRun = jsonConfig.get("dryRun", False)
-batchSize = jsonConfig.get("batchSize", 10)
+batchSize = jsonConfig.get("batchSize", 20)
 
 if workingDirectory.startswith("./"):
     workingDirectory = workingDirectory.replace("./", os.getcwd()+"/")
+    if debugPrintAction:
+        print("workingDirectory starts with ./ replacing workingDirectory with current directory: "+workingDirectory)
 
 arrFileToBeChecked = []
 for globFile in globFilesIncludes:
@@ -88,9 +91,50 @@ if len(arrFileToBeChecked) == 0:
 if dryRun:
     exit()
 
+# split files to be checked to batches
+arrBatch = []
+currentBatch = []
+for filename in arrFileToBeChecked:
+    if len(currentBatch) >= batchSize:
+        arrBatch.append(currentBatch)
+        currentBatch = []
+    currentBatch.append(filename)
+arrBatch.append(currentBatch)
+numberOfBatch = len(arrBatch)
+if debugPrintAction:
+    print("splitting "+str(numberOfFileToBeChecked)+" to "+str(numberOfBatch)+" batch")
+
+# if dryRun:
+#     exit()
+
 arrFileOpenedInLspServer = []
 arrDiagnosticResult = []
 arrDiagnosticHash = []
+
+def processBatch():
+    global arrFileToBeChecked
+    global numberOfFileToBeChecked
+    if len(arrBatch) == 0:
+        finished()
+
+    if debugPrintProgress:
+        progressTotal = numberOfBatch
+        progressCurrent = numberOfBatch-len(arrBatch)+1
+        print("processing batch "+str(progressCurrent)+" of "+str(progressTotal)+" ("+str(progressCurrent/progressTotal*100)+"%)")
+
+    arrFileToBeChecked = arrBatch.pop(0)
+    arrFileOpenedInLspServer = []
+    numberOfFileToBeChecked = len(arrFileToBeChecked)
+    print(arrFileToBeChecked)
+    startOpenDiagnostic()
+
+def startOpenDiagnostic():
+    global socketTimeout
+    isMasihAdaFile = True
+    socketTimeout = None
+    while isMasihAdaFile :
+        isMasihAdaFile = openForDiagnostic()
+    socketTimeout = 10
 
 def openForDiagnostic():
     if len(arrFileToBeChecked) == 0:
@@ -98,7 +142,7 @@ def openForDiagnostic():
 
     if debugPrintProgress:
         progressTotal = numberOfFileToBeChecked
-        progressCurrent = numberOfFileToBeChecked-len(arrFileToBeChecked)
+        progressCurrent = numberOfFileToBeChecked-len(arrFileToBeChecked)+1
         print("opening file "+str(progressCurrent)+" of "+str(progressTotal)+" ("+str(progressCurrent/progressTotal*100)+"%)")
 
     filename = arrFileToBeChecked.pop(0)
@@ -115,11 +159,13 @@ def openForDiagnostic():
     arrFileOpenedInLspServer.append(filename)
     return True
 
+dictSeverity = {"1":"Error","2":"Warning","3":"Information","4":"Hint"}
+
 def receiveDiagnostic(diagnosticData):
 
     if debugPrintProgress:
         progressTotal = numberOfFileToBeChecked
-        progressCurrent = numberOfFileToBeChecked-len(arrFileOpenedInLspServer)
+        progressCurrent = numberOfFileToBeChecked-len(arrFileOpenedInLspServer)+1
         print("receive diagnostic "+str(progressCurrent)+" of "+str(progressTotal)+" ("+str(progressCurrent/progressTotal*100)+"%)")
 
     filename = diagnosticData.get("uri")
@@ -135,13 +181,13 @@ def receiveDiagnostic(diagnosticData):
     # save diagnostic result to an array
     for diag in diagnosticData.get("diagnostics",[]):
         diagObj = {
-            "filename":diagnosticData.get("uri","").replace("file://",""),
+            "fileName":diagnosticData.get("uri","").replace("file://","").replace(workingDirectory,""),
             "lineStart":diag.get("range").get("start").get("line"),
             "lineEnd":diag.get("range").get("end").get("line"),
             "characterStart":diag.get("range").get("start").get("character"),
             "characterEnd":diag.get("range").get("end").get("character"),
             "message":diag.get("message"),
-            "severity":diag.get("severity"),
+            "severity":dictSeverity.get(diag.get("severity"),"Other"),
             "code":diag.get("code"),
             "source":diag.get("source"),
         }
@@ -158,12 +204,16 @@ def receiveDiagnostic(diagnosticData):
         print(arrDiagnosticResult)
 
     if len(arrFileOpenedInLspServer) == 0:
-        if debugPrintDiagnostics:
-            print("finished!")
-            print(arrDiagnosticResult)
-        with open(outputFile, "w") as f:
-            f.write(json.dumps(arrDiagnosticResult))
-        exit()
+        processBatch()
+
+def finished():
+    if debugPrintDiagnostics:
+        print("finished!")
+        print(arrDiagnosticResult)
+    with open(outputFile, "w") as f:
+        f.write(json.dumps(arrDiagnosticResult))
+    exit()
+
 
 # communication with LSP server
 
@@ -181,6 +231,7 @@ if lspServerStderr != None:
 p = subprocess.Popen(lspServerCommand, stdout=lspServerStdout,stderr=lspServerStderr)
 
 sockClient, addr = sock.accept()
+socketTimeout = None
 if debugPrintLspComm:
     print("CLIENT CONNECTED! ADDRESS: ", addr)
 
@@ -191,8 +242,8 @@ def sendLspMsg(sock, msg):
     sock.sendall("\r\n".encode())
     sock.sendall("\r\n".encode())
     sock.sendall(msg.encode())
-    sock.sendall("\r\n".encode())
-    sock.sendall("\r\n".encode())
+    # sock.sendall("\r\n".encode())
+    # sock.sendall("\r\n".encode())
     if debugPrintLspComm:
         print("CLIENT")
         print("\t"+msg)
@@ -213,6 +264,7 @@ def sendJsonRpc(sock, idparam=None, method=None, params=None, result=None, inclu
 def recvUntil(sock, substring):
     msg = ""
     while True:
+        sock.settimeout(socketTimeout)
         charIn = sock.recv(1).decode()
         msg = msg + charIn
         if substring in msg:
@@ -231,6 +283,7 @@ def recvLspMsg(sock):
     length = dict_headers["content-length"]
     if debugPrintLspComm:
         print(length)
+    sock.settimeout(socketTimeout)
     msg = sock.recv(int(length)).decode()
     if debugPrintLspComm:
         print("SERVER")
@@ -243,8 +296,14 @@ def recvJsonRpc(sock):
 
 def startEventPolling(sockClient):
     while True:
-        message = recvJsonRpc(sockClient)
-        eventHandler(sockClient, message)
+        try:
+            message = recvJsonRpc(sockClient)
+            eventHandler(sockClient, message)
+        except Exception as e:
+            print(e)
+            raise e
+            # print(arrFileOpenedInLspServer)
+            # receiveDiagnostic({})
 
 def eventHandler(sockClient, message):
     if message.get("id",None) == 1 and message.get("result",{}).get("capabilities",None) != None :
@@ -263,9 +322,7 @@ def eventHandler(sockClient, message):
     elif message.get("id",None) == None and message.get("method",None) == "indexingEnded": # when indexing has ended, we can start opening first file
         if debugPrintProgress:
             print("indexingEnded")
-        isMasihAdaFile = True
-        while isMasihAdaFile :
-            isMasihAdaFile = openForDiagnostic()
+        processBatch()
 
     elif message.get("id",None) == None and message.get("method",None) == "textDocument/publishDiagnostics":
         receiveDiagnostic(message.get("params"))
@@ -350,6 +407,9 @@ sendJsonRpc(sock=sockClient, idparam=1, method="initialize", params={
     },
     "initializationOptions": {
       # "clearCache": True,
+      # storagePath: "/tmp/",
+      # globalStoragePath: "/tmp/",
+      # licenseKey: "/tmp/",
       "clearCache": True,
       "logVerbosity": "verbose",
     }

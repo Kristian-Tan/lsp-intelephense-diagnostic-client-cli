@@ -38,7 +38,8 @@ This project is made for `php` and `intelephense`, but should also work for othe
     "debugPrintLspComm": false,
     "debugPrintDiagnostics": false,
     "debugPrintProgress": true,
-    "dryRun": false
+    "dryRun": false,
+    "batchSize": 20
 }
 
 ```
@@ -111,6 +112,12 @@ This project is made for `php` and `intelephense`, but should also work for othe
     - `dryRun`:
         - When set to true, will only enumerate files to process and then exit
         - Default value: false
+
+    - `batchSize`:
+        - Opening too many files at once may crash/overload the LSP server. Batch processing will open X number of files, then read the diagnostics before moving to next batch of files. 
+        - Lowering this value should decrease resource usage while increasing processing time
+        - Increasing this value should increase resource usage while reducing processing time
+        - Default value: 20
 
 - Example usage with all default parameters: ```python3 client.py <(echo '{}')```
 

@@ -20,5 +20,6 @@
     "debugPrintLspComm": false,
     "debugPrintDiagnostics": false,
     "debugPrintProgress": true,
-    "dryRun": false
+    "dryRun": false,
+    "batchSize": 20
 }
