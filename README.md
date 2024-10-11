@@ -32,7 +32,13 @@ This project is made for `php` and `intelephense`, but should also work for othe
     "lspServerStdout": "/tmp/lsp-server-stdout",
     "lspServerStderr": "/tmp/lsp-server-stderr",
     "lspClientPort": 0,
-    "lspClientAddress": "0.0.0.0"
+    "lspClientAddress": "0.0.0.0",
+    "incrementLineNumber": true,
+    "debugPrintTargetFiles": true,
+    "debugPrintLspComm": false,
+    "debugPrintDiagnostics": false,
+    "debugPrintProgress": true,
+    "dryRun": false
 }
 
 ```
@@ -81,6 +87,31 @@ This project is made for `php` and `intelephense`, but should also work for othe
         - Bind to this address. 
         - Default value: 0.0.0.0 (listen to all interfaces)
 
+    - `incrementLineNumber`:
+        - LSP server diagnostic parameter `lineStart` and `lineEnd` starts at 0 (first line in a file is line 0, second line is line 1, etc)
+        - If set to true, will increment `lineStart` and `lineEnd` by 1 (so first in a file is line 1, second line is line 2, etc)
+        - Default value: true
+
+    - `debugPrintTargetFiles`:
+        - Toggle print/show target files (from processing option `includes` and `excludes`) before running the actual diagnostics
+        - Default value: true
+
+    - `debugPrintLspComm`:
+        - Toggle print/show traffic/payload of LSP communications, useful for debugging or learning LSP protocol
+        - Default value: false
+
+    - `debugPrintDiagnostics`:
+        - Toggle print/show diagnostics gained from LSP server
+        - Default value: false
+
+    - `debugPrintProgress`:
+        - Toggle print/show progress percentage
+        - Default value: true
+
+    - `dryRun`:
+        - When set to true, will only enumerate files to process and then exit
+        - Default value: false
+
 - Example usage with all default parameters: ```python3 client.py <(echo '{}')```
 
 ### Intelephense From Docker
@@ -100,6 +131,5 @@ docker run \
 
 
 ### Planned Development
-- rewrite initialization options which is just copied from sublime text's sniffed initialization options
 - make this client available inside docker (which may or may not include intelephense), so users do not need to install python
-
+- batch processing file (e.g.: only first 100 files) to reduce CPU/memory usage

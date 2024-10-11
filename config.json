@@ -14,5 +14,11 @@
     "lspServerStdout": "/tmp/lsp-server-stdout",
     "lspServerStderr": "/tmp/lsp-server-stderr",
     "lspClientPort": 0,
-    "lspClientAddress": "0.0.0.0"
+    "lspClientAddress": "0.0.0.0",
+    "incrementLineNumber": true,
+    "debugPrintTargetFiles": true,
+    "debugPrintLspComm": false,
+    "debugPrintDiagnostics": false,
+    "debugPrintProgress": true,
+    "dryRun": false
 }

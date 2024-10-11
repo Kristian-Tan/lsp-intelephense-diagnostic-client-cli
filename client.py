@@ -51,8 +51,17 @@ lspServerStdout = jsonConfig.get("lspServerStdout", None)
 lspServerStderr = jsonConfig.get("lspServerStderr", None)
 lspClientPort = jsonConfig.get("lspClientPort", 0)
 lspClientAddress = jsonConfig.get("lspClientAddress", "0.0.0.0")
+incrementLineNumber = jsonConfig.get("incrementLineNumber", True)
 # lspClientBuffer = jsonConfig.get("lspClientBuffer", 4092)
+debugPrintTargetFiles = jsonConfig.get("debugPrintTargetFiles", True)
+debugPrintLspComm = jsonConfig.get("debugPrintLspComm", False)
+debugPrintDiagnostics = jsonConfig.get("debugPrintDiagnostics", False)
+debugPrintProgress = jsonConfig.get("debugPrintProgress", True)
+dryRun = jsonConfig.get("dryRun", False)
+batchSize = jsonConfig.get("batchSize", 10)
 
+if workingDirectory.startswith("./"):
+    workingDirectory = workingDirectory.replace("./", os.getcwd()+"/")
 
 arrFileToBeChecked = []
 for globFile in globFilesIncludes:
@@ -60,21 +69,24 @@ for globFile in globFilesIncludes:
         arrFileToBeChecked.append(filename)
 # exit()
 
-globFilesExcludes
-
 arrFileToBeIgnored = []
 for globFile in globFilesExcludes:
     for filename in glob.glob(workingDirectory+"/"+globFile, recursive=True):
-        print(filename)
+        # if debugPrintTargetFiles:
+        #     print(filename)
         if filename in arrFileToBeChecked:
             arrFileToBeChecked.remove(filename)
 
-print("file list:")
-print(arrFileToBeChecked)
+numberOfFileToBeChecked = len(arrFileToBeChecked)
+if debugPrintTargetFiles:
+    print("file list: "+str(numberOfFileToBeChecked)+" file(s)")
+    print(arrFileToBeChecked)
 if len(arrFileToBeChecked) == 0:
     print("no file found")
     exit()
-# exit()
+
+if dryRun:
+    exit()
 
 arrFileOpenedInLspServer = []
 arrDiagnosticResult = []
@@ -83,6 +95,11 @@ arrDiagnosticHash = []
 def openForDiagnostic():
     if len(arrFileToBeChecked) == 0:
         return False
+
+    if debugPrintProgress:
+        progressTotal = numberOfFileToBeChecked
+        progressCurrent = numberOfFileToBeChecked-len(arrFileToBeChecked)
+        print("opening file "+str(progressCurrent)+" of "+str(progressTotal)+" ("+str(progressCurrent/progressTotal*100)+"%)")
 
     filename = arrFileToBeChecked.pop(0)
     with open(filename) as f: content = f.read()
@@ -99,6 +116,12 @@ def openForDiagnostic():
     return True
 
 def receiveDiagnostic(diagnosticData):
+
+    if debugPrintProgress:
+        progressTotal = numberOfFileToBeChecked
+        progressCurrent = numberOfFileToBeChecked-len(arrFileOpenedInLspServer)
+        print("receive diagnostic "+str(progressCurrent)+" of "+str(progressTotal)+" ("+str(progressCurrent/progressTotal*100)+"%)")
+
     filename = diagnosticData.get("uri")
     sendJsonRpc(sock=sockClient, method="textDocument/didClose", params={
         "textDocument":{
@@ -122,17 +145,22 @@ def receiveDiagnostic(diagnosticData):
             "code":diag.get("code"),
             "source":diag.get("source"),
         }
+        if incrementLineNumber:
+            diagObj["lineStart"] = diagObj["lineStart"]+1
+            diagObj["lineEnd"] = diagObj["lineEnd"]+1
         diagHash = hashlib.md5(json.dumps(diagObj).encode()).hexdigest()
         if diagHash not in arrDiagnosticHash:
             arrDiagnosticResult.append(diagObj)
             arrDiagnosticHash.append(diagHash)
 
-    print("got new diagnostic data")
-    print(arrDiagnosticResult)
+    if debugPrintDiagnostics:
+        print("got new diagnostic data")
+        print(arrDiagnosticResult)
 
     if len(arrFileOpenedInLspServer) == 0:
-        print("finished!")
-        print(arrDiagnosticResult)
+        if debugPrintDiagnostics:
+            print("finished!")
+            print(arrDiagnosticResult)
         with open(outputFile, "w") as f:
             f.write(json.dumps(arrDiagnosticResult))
         exit()
@@ -153,7 +181,8 @@ if lspServerStderr != None:
 p = subprocess.Popen(lspServerCommand, stdout=lspServerStdout,stderr=lspServerStderr)
 
 sockClient, addr = sock.accept()
-print("CLIENT CONNECTED! ADDRESS: ", addr)
+if debugPrintLspComm:
+    print("CLIENT CONNECTED! ADDRESS: ", addr)
 
 def sendLspMsg(sock, msg):
     # sock.sendall("Content-Type: application/vscode-jsonrpc; charset=utf-8".encode())
@@ -164,8 +193,9 @@ def sendLspMsg(sock, msg):
     sock.sendall(msg.encode())
     sock.sendall("\r\n".encode())
     sock.sendall("\r\n".encode())
-    print("CLIENT")
-    print("\t"+msg)
+    if debugPrintLspComm:
+        print("CLIENT")
+        print("\t"+msg)
 
 def sendJsonRpc(sock, idparam=None, method=None, params=None, result=None, includes=[]):
     dictJsonRpc = {"jsonrpc":"2.0", "id":idparam, "method":method, "params":params, "result":result}
@@ -199,10 +229,12 @@ def recvLspMsg(sock):
         dict_headers[split_by_colon[0].strip().lower()] = split_by_colon[1].strip()
 
     length = dict_headers["content-length"]
-    # print(length)
+    if debugPrintLspComm:
+        print(length)
     msg = sock.recv(int(length)).decode()
-    print("SERVER")
-    print("\t"+msg)
+    if debugPrintLspComm:
+        print("SERVER")
+        print("\t"+msg)
     return msg
 
 def recvJsonRpc(sock):
@@ -229,6 +261,8 @@ def eventHandler(sockClient, message):
         sendJsonRpc(sock=sockClient, idparam=message.get("id",None), result=None, includes=["result"])
 
     elif message.get("id",None) == None and message.get("method",None) == "indexingEnded": # when indexing has ended, we can start opening first file
+        if debugPrintProgress:
+            print("indexingEnded")
         isMasihAdaFile = True
         while isMasihAdaFile :
             isMasihAdaFile = openForDiagnostic()
@@ -236,13 +270,18 @@ def eventHandler(sockClient, message):
     elif message.get("id",None) == None and message.get("method",None) == "textDocument/publishDiagnostics":
         receiveDiagnostic(message.get("params"))
 
-    elif message.get("id",None) == None and message.get("method",None) in ["indexingStarted","window/logMessage"]:
-        pass # ignored notification
+    elif message.get("id",None) == None and message.get("method",None) == "window/logMessage":
+        pass
+
+    elif message.get("id",None) == None and message.get("method",None) == "indexingStarted":
+        if debugPrintProgress:
+            print("indexingStarted")
 
 
     # generic non-handled
     elif message.get("id",None) == None:
-        print("notification only")
+        if debugPrintLspComm:
+            print("notification only")
     elif message.get("id",None) != None:
         raise Exception("unimplemented method called!")
     else:
@@ -268,212 +307,12 @@ sendJsonRpc(sock=sockClient, idparam=1, method="initialize", params={
       }
     ],
     "capabilities": {
-      "general": {
-        "regularExpressions": {
-          "engine": "ECMAScript"
-        },
-        "markdown": {
-          "parser": "Python-Markdown",
-          "version": "3.2.2"
-        }
-      },
       "textDocument": {
         "synchronization": {
           "dynamicRegistration": True,
-          "didSave": True,
-          "willSave": True,
-          "willSaveWaitUntil": True
-        },
-        "hover": {
-          "dynamicRegistration": True,
-          "contentFormat": [
-            "markdown",
-            "plaintext"
-          ]
-        },
-        "completion": {
-          "dynamicRegistration": True,
-          "completionItem": {
-            "snippetSupport": True,
-            "deprecatedSupport": True,
-            "documentationFormat": [
-              "markdown",
-              "plaintext"
-            ],
-            "tagSupport": {
-              "valueSet": [
-                1
-              ]
-            },
-            "resolveSupport": {
-              "properties": [
-                "detail",
-                "documentation",
-                "additionalTextEdits"
-              ]
-            },
-            "insertReplaceSupport": True,
-            "insertTextModeSupport": {
-              "valueSet": [
-                2
-              ]
-            },
-            "labelDetailsSupport": True
-          },
-          "completionItemKind": {
-            "valueSet": [
-              1,
-              2,
-              3,
-              4,
-              5,
-              6,
-              7,
-              8,
-              9,
-              10,
-              11,
-              12,
-              13,
-              14,
-              15,
-              16,
-              17,
-              18,
-              19,
-              20,
-              21,
-              22,
-              23,
-              24,
-              25
-            ]
-          },
-          "insertTextMode": 2,
-          "completionList": {
-            "itemDefaults": [
-              "editRange",
-              "insertTextFormat",
-              "data"
-            ]
-          }
-        },
-        "signatureHelp": {
-          "dynamicRegistration": True,
-          "contextSupport": True,
-          "signatureInformation": {
-            "activeParameterSupport": True,
-            "documentationFormat": [
-              "markdown",
-              "plaintext"
-            ],
-            "parameterInformation": {
-              "labelOffsetSupport": True
-            }
-          }
-        },
-        "references": {
-          "dynamicRegistration": True
-        },
-        "documentHighlight": {
-          "dynamicRegistration": True
-        },
-        "documentSymbol": {
-          "dynamicRegistration": True,
-          "hierarchicalDocumentSymbolSupport": True,
-          "symbolKind": {
-            "valueSet": [
-              1,
-              2,
-              3,
-              4,
-              5,
-              6,
-              7,
-              8,
-              9,
-              10,
-              11,
-              12,
-              13,
-              14,
-              15,
-              16,
-              17,
-              18,
-              19,
-              20,
-              21,
-              22,
-              23,
-              24,
-              25,
-              26
-            ]
-          },
-          "tagSupport": {
-            "valueSet": [
-              1
-            ]
-          }
         },
         "documentLink": {
           "dynamicRegistration": True,
-          "tooltipSupport": True
-        },
-        "formatting": {
-          "dynamicRegistration": True
-        },
-        "rangeFormatting": {
-          "dynamicRegistration": True,
-          "rangesSupport": True
-        },
-        "declaration": {
-          "dynamicRegistration": True,
-          "linkSupport": True
-        },
-        "definition": {
-          "dynamicRegistration": True,
-          "linkSupport": True
-        },
-        "typeDefinition": {
-          "dynamicRegistration": True,
-          "linkSupport": True
-        },
-        "implementation": {
-          "dynamicRegistration": True,
-          "linkSupport": True
-        },
-        "codeAction": {
-          "dynamicRegistration": True,
-          "codeActionLiteralSupport": {
-            "codeActionKind": {
-              "valueSet": [
-                "quickfix",
-                "refactor",
-                "refactor.extract",
-                "refactor.inline",
-                "refactor.rewrite",
-                "source.fixAll",
-                "source.organizeImports"
-              ]
-            }
-          },
-          "dataSupport": True,
-          "isPreferredSupport": True,
-          "resolveSupport": {
-            "properties": [
-              "edit"
-            ]
-          }
-        },
-        "rename": {
-          "dynamicRegistration": True,
-          "prepareSupport": True,
-          "prepareSupportDefaultBehavior": 1
-        },
-        "colorProvider": {
-          "dynamicRegistration": True
         },
         "publishDiagnostics": {
           "relatedInformation": True,
@@ -491,89 +330,6 @@ sendJsonRpc(sock=sockClient, idparam=1, method="initialize", params={
           "dynamicRegistration": True,
           "relatedDocumentSupport": True
         },
-        "selectionRange": {
-          "dynamicRegistration": True
-        },
-        "foldingRange": {
-          "dynamicRegistration": True,
-          "foldingRangeKind": {
-            "valueSet": [
-              "comment",
-              "imports",
-              "region"
-            ]
-          }
-        },
-        "codeLens": {
-          "dynamicRegistration": True
-        },
-        "inlayHint": {
-          "dynamicRegistration": True,
-          "resolveSupport": {
-            "properties": [
-              "textEdits",
-              "label.command"
-            ]
-          }
-        },
-        "semanticTokens": {
-          "dynamicRegistration": True,
-          "requests": {
-            "range": True,
-            "full": {
-              "delta": True
-            }
-          },
-          "tokenTypes": [
-            "namespace",
-            "type",
-            "class",
-            "enum",
-            "interface",
-            "struct",
-            "typeParameter",
-            "parameter",
-            "variable",
-            "property",
-            "enumMember",
-            "event",
-            "function",
-            "method",
-            "macro",
-            "keyword",
-            "modifier",
-            "comment",
-            "string",
-            "number",
-            "regexp",
-            "operator",
-            "decorator"
-          ],
-          "tokenModifiers": [
-            "declaration",
-            "definition",
-            "readonly",
-            "static",
-            "deprecated",
-            "abstract",
-            "async",
-            "modification",
-            "documentation",
-            "defaultLibrary"
-          ],
-          "formats": [
-            "relative"
-          ],
-          "overlappingTokenSupport": False,
-          "multilineTokenSupport": True,
-          "augmentsSyntaxTokens": True
-        },
-        "callHierarchy": {
-          "dynamicRegistration": True
-        },
-        "typeHierarchy": {
-          "dynamicRegistration": True
-        }
       },
       "workspace": {
         "applyEdit": True,
@@ -586,74 +342,11 @@ sendJsonRpc(sock=sockClient, idparam=1, method="initialize", params={
           "failureHandling": "abort"
         },
         "workspaceFolders": True,
-        "symbol": {
-          "dynamicRegistration": True,
-          "resolveSupport": {
-            "properties": [
-              "location.range"
-            ]
-          },
-          "symbolKind": {
-            "valueSet": [
-              1,
-              2,
-              3,
-              4,
-              5,
-              6,
-              7,
-              8,
-              9,
-              10,
-              11,
-              12,
-              13,
-              14,
-              15,
-              16,
-              17,
-              18,
-              19,
-              20,
-              21,
-              22,
-              23,
-              24,
-              25,
-              26
-            ]
-          },
-          "tagSupport": {
-            "valueSet": [
-              1
-            ]
-          }
-        },
         "configuration": True,
-        "codeLens": {
-          "refreshSupport": True
-        },
-        "inlayHint": {
-          "refreshSupport": True
-        },
-        "semanticTokens": {
-          "refreshSupport": True
-        },
         "diagnostics": {
           "refreshSupport": True
         }
       },
-      "window": {
-        "showDocument": {
-          "support": True
-        },
-        "showMessage": {
-          "messageActionItem": {
-            "additionalPropertiesSupport": True
-          }
-        },
-        "workDoneProgress": True
-      }
     },
     "initializationOptions": {
       # "clearCache": True,
