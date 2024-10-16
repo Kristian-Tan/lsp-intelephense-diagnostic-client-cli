@@ -39,7 +39,11 @@ This project is made for `php` and `intelephense`, but should also work for othe
     "debugPrintDiagnostics": false,
     "debugPrintProgress": true,
     "dryRun": false,
-    "batchSize": 20
+    "batchSize": 20,
+    "ignoreMessageRegex": ["Undefined type 'Memcached'"],
+    "ignoreSeverity": ["Hint"],
+    "ignoreCode": ["P1009"],
+    "ignoreSource": ["javascript"],
 }
 
 ```
@@ -119,6 +123,22 @@ This project is made for `php` and `intelephense`, but should also work for othe
         - Increasing this value should increase resource usage while reducing processing time
         - Default value: 20
 
+    - `ignoreMessageRegex`:
+        - Array of strings to ignore diagnostic based on this regex pattern against diagnostic message
+        - Default value: `[]` (empty array)
+
+    - `ignoreSeverity`:
+        - Array of strings to ignore severity, can be filled with: `Error`,`Warning`,`Information`,`Hint`
+        - Default value: `[]` (empty array)
+
+    - `ignoreCode`:
+        - Array of strings to ignore diagnostic based on diagnostic code
+        - Default value: `[]` (empty array)
+
+    - `ignoreSource`:
+        - Array of strings to ignore diagnostic based on diagnostic source
+        - Default value: `[]` (empty array)
+
 - Example usage with all default parameters: ```python3 client.py <(echo '{}')```
 
 ### Intelephense From Docker
@@ -140,3 +160,7 @@ docker run \
 ### Planned Development
 - make this client available inside docker (which may or may not include intelephense), so users do not need to install python
 - batch processing file (e.g.: only first 100 files) to reduce CPU/memory usage
+- configure LSP server config (e.g.: https://github.com/bmewburn/vscode-intelephense/blob/master/package.json to change intelephense.stubs so symbol Memcached not diagnosed as unknown symbol
+- docker process not killed
+- 
+

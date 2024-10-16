@@ -21,5 +21,9 @@
     "debugPrintDiagnostics": false,
     "debugPrintProgress": true,
     "dryRun": false,
-    "batchSize": 20
+    "batchSize": 20,
+    "ignoreMessageRegex": [],
+    "ignoreSeverity": [],
+    "ignoreCode": [],
+    "ignoreSource": []
 }

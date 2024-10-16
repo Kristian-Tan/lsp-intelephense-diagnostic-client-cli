@@ -8,6 +8,7 @@ import os
 import glob
 import sys
 import hashlib
+import re
 
 ## config file
 # example config file
@@ -60,6 +61,10 @@ debugPrintProgress = jsonConfig.get("debugPrintProgress", True)
 debugPrintAction = jsonConfig.get("debugPrintAction", False)
 dryRun = jsonConfig.get("dryRun", False)
 batchSize = jsonConfig.get("batchSize", 20)
+ignoreMessageRegex = jsonConfig.get("ignoreMessageRegex", [])
+ignoreSeverity = jsonConfig.get("ignoreSeverity", [])
+ignoreCode = jsonConfig.get("ignoreCode", [])
+ignoreSource = jsonConfig.get("ignoreSource", [])
 
 if workingDirectory.startswith("./"):
     workingDirectory = workingDirectory.replace("./", os.getcwd()+"/")
@@ -110,6 +115,7 @@ if debugPrintAction:
 arrFileOpenedInLspServer = []
 arrDiagnosticResult = []
 arrDiagnosticHash = []
+lspSubprocess = None
 
 def processBatch():
     global arrFileToBeChecked
@@ -181,23 +187,32 @@ def receiveDiagnostic(diagnosticData):
     # save diagnostic result to an array
     for diag in diagnosticData.get("diagnostics",[]):
         diagObj = {
-            "fileName":diagnosticData.get("uri","").replace("file://","").replace(workingDirectory,""),
+            "fileName":diagnosticData.get("uri","").replace("file://","").replace(workingDirectory,"").lstrip("/"),
             "lineStart":diag.get("range").get("start").get("line"),
             "lineEnd":diag.get("range").get("end").get("line"),
             "characterStart":diag.get("range").get("start").get("character"),
             "characterEnd":diag.get("range").get("end").get("character"),
             "message":diag.get("message"),
-            "severity":dictSeverity.get(diag.get("severity"),"Other"),
+            "severity":dictSeverity.get(str(diag.get("severity")),"Other"),
             "code":diag.get("code"),
             "source":diag.get("source"),
         }
+
         if incrementLineNumber:
             diagObj["lineStart"] = diagObj["lineStart"]+1
             diagObj["lineEnd"] = diagObj["lineEnd"]+1
         diagHash = hashlib.md5(json.dumps(diagObj).encode()).hexdigest()
+
         if diagHash not in arrDiagnosticHash:
-            arrDiagnosticResult.append(diagObj)
             arrDiagnosticHash.append(diagHash)
+
+            if (
+                diagObj["severity"] not in ignoreSeverity and
+                diagObj["code"] not in ignoreCode and
+                diagObj["source"] not in ignoreSource and
+                len(sum([ re.findall(x, diagObj["message"]) for x in ignoreMessageRegex ],[])) == 0
+            ):
+                arrDiagnosticResult.append(diagObj)
 
     if debugPrintDiagnostics:
         print("got new diagnostic data")
@@ -212,6 +227,9 @@ def finished():
         print(arrDiagnosticResult)
     with open(outputFile, "w") as f:
         f.write(json.dumps(arrDiagnosticResult))
+    if type(lspSubprocess) == subprocess.Popen:
+        lspSubprocess.terminate()
+        lspSubprocess.kill()
     exit()
 
 
@@ -228,7 +246,7 @@ if lspServerStdout != None:
     lspServerStdout = open(lspServerStdout, "w")
 if lspServerStderr != None:
     lspServerStderr = open(lspServerStderr, "w")
-p = subprocess.Popen(lspServerCommand, stdout=lspServerStdout,stderr=lspServerStderr)
+lspSubprocess = subprocess.Popen(lspServerCommand, stdout=lspServerStdout,stderr=lspServerStderr)
 
 sockClient, addr = sock.accept()
 socketTimeout = None
@@ -415,5 +433,3 @@ sendJsonRpc(sock=sockClient, idparam=1, method="initialize", params={
     }
 })
 startEventPolling(sockClient)
-
-exit()
