@@ -65,6 +65,7 @@ ignoreMessageRegex = jsonConfig.get("ignoreMessageRegex", [])
 ignoreSeverity = jsonConfig.get("ignoreSeverity", [])
 ignoreCode = jsonConfig.get("ignoreCode", [])
 ignoreSource = jsonConfig.get("ignoreSource", [])
+additionalInfoCmd = jsonConfig.get("additionalInfoCmd", [])
 
 if workingDirectory.startswith("./"):
     workingDirectory = workingDirectory.replace("./", os.getcwd()+"/")
@@ -196,6 +197,7 @@ def receiveDiagnostic(diagnosticData):
             "severity":dictSeverity.get(str(diag.get("severity")),"Other"),
             "code":diag.get("code"),
             "source":diag.get("source"),
+            "additionalInfo":None,
         }
 
         if incrementLineNumber:
@@ -212,6 +214,25 @@ def receiveDiagnostic(diagnosticData):
                 diagObj["source"] not in ignoreSource and
                 len(sum([ re.findall(x, diagObj["message"]) for x in ignoreMessageRegex ],[])) == 0
             ):
+                if additionalInfoCmd != None and len(additionalInfoCmd) > 1:
+                    cmd = additionalInfoCmd.copy()
+                    cmd = [ x.replace("{WORKING_DIRECTORY}",workingDirectory) for x in cmd ]
+                    cmd = [ x.replace("{FILE_NAME}",      str(diagObj["fileName"])) for x in cmd ]
+                    cmd = [ x.replace("{LINE_START}",     str(diagObj["lineStart"])) for x in cmd ]
+                    cmd = [ x.replace("{LINE_END}",       str(diagObj["lineEnd"])) for x in cmd ]
+                    cmd = [ x.replace("{CHARACTER_START}",str(diagObj["characterStart"])) for x in cmd ]
+                    cmd = [ x.replace("{CHARACTER_END}",  str(diagObj["characterEnd"])) for x in cmd ]
+                    cmd = [ x.replace("{MESSAGE}",        str(diagObj["message"])) for x in cmd ]
+                    cmd = [ x.replace("{SEVERITY}",       str(diagObj["severity"])) for x in cmd ]
+                    cmd = [ x.replace("{CODE}",           str(diagObj["code"])) for x in cmd ]
+                    cmd = [ x.replace("{SOURCE}",         str(diagObj["source"])) for x in cmd ]
+                    additionalInfoSubprocess = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+                    additionalInfoSubprocess.wait()
+                    diagObj["additionalInfo"] = ""
+                    for line in additionalInfoSubprocess.stdout:
+                        diagObj["additionalInfo"] = diagObj["additionalInfo"] + line.decode()
+                    diagObj["additionalInfo"] = diagObj["additionalInfo"].strip()
+
                 arrDiagnosticResult.append(diagObj)
 
     if debugPrintDiagnostics:

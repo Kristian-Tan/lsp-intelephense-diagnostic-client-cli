@@ -25,5 +25,6 @@
     "ignoreMessageRegex": [],
     "ignoreSeverity": [],
     "ignoreCode": [],
-    "ignoreSource": []
+    "ignoreSource": [],
+    "additionalInfoCmd": null
 }
