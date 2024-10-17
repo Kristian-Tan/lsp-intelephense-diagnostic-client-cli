@@ -44,6 +44,7 @@ This project is made for `php` and `intelephense`, but should also work for othe
     "ignoreSeverity": ["Hint"],
     "ignoreCode": ["P1009"],
     "ignoreSource": ["javascript"],
+    "additionalInfoCmd": ["bash","-c","cd {WORKING_DIRECTORY} ; git log -s --pretty=format:'%ae//%an//%h' -L {LINE_START},{LINE_END}:{FILE_NAME} | head -n3 | sort | uniq"]
 }
 
 ```
@@ -138,6 +139,13 @@ This project is made for `php` and `intelephense`, but should also work for othe
     - `ignoreSource`:
         - Array of strings to ignore diagnostic based on diagnostic source
         - Default value: `[]` (empty array)
+
+    - `additionalInfoCmd`:
+        - Array of command to be executed to get additional info about this error
+        - Additional info can be useful to identify who committed this line in version control (e.g.: git), or to run a command when a diagnostic is found (e.g.: failing pipeline or rolling back push/git)
+        - Output of this command will be saved to variable `addtionalInfo`
+        - Value can have this parameter to be replaced: `{FILE_NAME}`, `{LINE_START}`, `{LINE_END}`, `{CHARACTER_START}`, `{CHARACTER_END}`, `{MESSAGE}`, `{SEVERITY}`, `{CODE}`, `{SOURCE}`
+        - Default value: `null` (no additional info)
 
 - Example usage with all default parameters: ```python3 client.py <(echo '{}')```
 
