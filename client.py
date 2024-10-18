@@ -66,6 +66,8 @@ ignoreSeverity = jsonConfig.get("ignoreSeverity", [])
 ignoreCode = jsonConfig.get("ignoreCode", [])
 ignoreSource = jsonConfig.get("ignoreSource", [])
 additionalInfoCmd = jsonConfig.get("additionalInfoCmd", [])
+cmdBefore = jsonConfig.get("cmdBefore", [])
+cmdAfter = jsonConfig.get("cmdAfter", [])
 
 if workingDirectory.startswith("./"):
     workingDirectory = workingDirectory.replace("./", os.getcwd()+"/")
@@ -251,8 +253,20 @@ def finished():
     if type(lspSubprocess) == subprocess.Popen:
         lspSubprocess.terminate()
         lspSubprocess.kill()
+    if cmdAfter != None and len(cmdAfter) > 1:
+        cmdAfterSubprocess = subprocess.Popen(cmdAfter, stdout=subprocess.PIPE)
+        cmdAfterSubprocess.wait()
     exit()
 
+
+if cmdBefore != None and len(cmdBefore) > 1:
+    cmdBeforeSubprocess = subprocess.Popen(cmdBefore, stdout=subprocess.PIPE)
+    cmdBeforeSubprocess.wait()
+    if cmdBeforeSubprocess.returncode != 0:
+        print("cmdBefore return "+str(cmdBeforeSubprocess.returncode)+", execution terminated")
+        for line in cmdBeforeSubprocess.stdout:
+            print(line.decode())
+        exit()
 
 # communication with LSP server
 

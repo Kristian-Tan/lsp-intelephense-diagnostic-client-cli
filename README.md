@@ -44,7 +44,9 @@ This project is made for `php` and `intelephense`, but should also work for othe
     "ignoreSeverity": ["Hint"],
     "ignoreCode": ["P1009"],
     "ignoreSource": ["javascript"],
-    "additionalInfoCmd": ["bash","-c","cd {WORKING_DIRECTORY} ; git log -s --pretty=format:'%ae//%an//%h' -L {LINE_START},{LINE_END}:{FILE_NAME} | head -n3 | sort | uniq"]
+    "additionalInfoCmd": ["bash","-c","cd {WORKING_DIRECTORY} ; git log -s --pretty=format:'%ae//%an//%h' -L {LINE_START},{LINE_END}:{FILE_NAME} | head -n3 | sort | uniq"],
+    "cmdBefore": ["pkill","-f","intelephense -i --socket"],
+    "cmdAfter": ["bash","-c","cat output.json | jq -r '(map(keys) | add | unique) as $cols | map(. as $row | $cols | map($row[.])) as $rows | $cols, $rows[] | @csv' > output.csv"]
 }
 
 ```
@@ -142,10 +144,24 @@ This project is made for `php` and `intelephense`, but should also work for othe
 
     - `additionalInfoCmd`:
         - Array of command to be executed to get additional info about this error
-        - Additional info can be useful to identify who committed this line in version control (e.g.: git), or to run a command when a diagnostic is found (e.g.: failing pipeline or rolling back push/git)
+        - This command will be run each time a diagnostic error received from LSP server
+        - This can be useful to identify who committed this line in version control (e.g.: git), or to run a command when a diagnostic is found (e.g.: failing pipeline or rolling back push/git)
         - Output of this command will be saved to variable `addtionalInfo`
         - Value can have this parameter to be replaced: `{FILE_NAME}`, `{LINE_START}`, `{LINE_END}`, `{CHARACTER_START}`, `{CHARACTER_END}`, `{MESSAGE}`, `{SEVERITY}`, `{CODE}`, `{SOURCE}`
         - Default value: `null` (no additional info)
+
+    - `cmdBefore`:
+        - Array of command to be executed (once) before the actual communication with LSP server take place
+        - This can be useful to prevent diagnostic to be run too frequently (e.g.: only run diagnostic nightly, if last run output.json was not older than 23 hour then cancel current run), or to prevent diagnostic running when machine load is too high (e.g.: exit if machine load average higher than 50% * number of cpu), or to kill old LSP client process (e.g.: prevent duplicate command to be run)
+        - If the return code if this command is not 0, the client will be terminated
+        - No parameter replacement will be done
+        - Default value: `null` (no command will be executed)
+
+    - `cmdAfter`:
+        - Array of command to be executed (once) after the actual communication with LSP server take place
+        - This can be useful to convert diagnostic data from json format to other format (e.g.: csv)
+        - No parameter replacement will be done
+        - Default value: `null` (no command will be executed)
 
 - Example usage with all default parameters: ```python3 client.py <(echo '{}')```
 
@@ -167,8 +183,3 @@ docker run \
 
 ### Planned Development
 - make this client available inside docker (which may or may not include intelephense), so users do not need to install python
-- batch processing file (e.g.: only first 100 files) to reduce CPU/memory usage
-- configure LSP server config (e.g.: https://github.com/bmewburn/vscode-intelephense/blob/master/package.json to change intelephense.stubs so symbol Memcached not diagnosed as unknown symbol
-- docker process not killed
-- 
-

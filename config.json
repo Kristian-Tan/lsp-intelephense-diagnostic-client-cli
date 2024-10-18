@@ -26,5 +26,7 @@
     "ignoreSeverity": [],
     "ignoreCode": [],
     "ignoreSource": [],
-    "additionalInfoCmd": null
+    "additionalInfoCmd": null,
+    "cmdBefore": ["pkill","-f","intelephense -i --socket"],
+    "cmdAfter": ["bash","-c","cat output.json | jq -r '(map(keys) | add | unique) as $cols | map(. as $row | $cols | map($row[.])) as $rows | $cols, $rows[] | @csv' > output.csv"]
 }
