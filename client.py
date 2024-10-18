@@ -337,7 +337,9 @@ def recvLspMsg(sock):
     if debugPrintLspComm:
         print(length)
     sock.settimeout(socketTimeout)
-    msg = sock.recv(int(length)).decode()
+    msg = ""
+    while len(msg) < int(length):
+        msg = msg + sock.recv(  int(length)-len(msg)  ).decode()
     if debugPrintLspComm:
         print("SERVER")
         print("\t"+msg)
@@ -345,7 +347,8 @@ def recvLspMsg(sock):
 
 def recvJsonRpc(sock):
     msg = recvLspMsg(sock)
-    return json.loads(msg)
+    jsonPayload = json.loads(msg)
+    return jsonPayload
 
 def startEventPolling(sockClient):
     while True:

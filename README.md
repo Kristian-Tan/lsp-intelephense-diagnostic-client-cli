@@ -166,7 +166,7 @@ This project is made for `php` and `intelephense`, but should also work for othe
 - Example usage with all default parameters: ```python3 client.py <(echo '{}')```
 
 ### Intelephense From Docker
-To ease installation of Intelephense, which depends on NPM and node.js, author has prepared a docker image to ease the installation on system which have docker installed. On system which already have Intelephense installed, this step is optional.
+To ease installation of Intelephense, which depends on NPM and node.js, author has prepared a docker image (\~90MB) to ease the installation on system which have docker installed. On system which already have Intelephense installed, this step is optional.
 
 ```bash
 docker run \
@@ -179,7 +179,41 @@ docker run \
 
 - option `--net=host` is used to enable LSP language client and LSP language server to communicate in same port number with host machine
 - option `-v` should mount the project directory (inside `workingDirectory` configuration), so that Intelephense can index the project directory for symbols/functions/classes declarations
+- dockerhub: https://hub.docker.com/r/krstian/intelephense-node22-alpine
+
+### Intelephense and CLI Client From Docker
+
+Another docker image which already have NPM, node.js, intelephense, python3 and this client (\~110MB) can be used on pipeline.
+
+- Example Usage:
+    - mount `/etc/intelephense-cli-config.json` to json configuration file
+    - mount php project
+- Example project:
+    - directory /home/kristian/www/my-php-project contains a php project
+    - directory /home/kristian/www/my-php-project/web is pointed to DocumentRoot of apache web server
+    - directory /home/kristian/www/my-php-project/intelephense-cli-config.json is a json file containing LSP client configuration (see above for documentation)
+- Example (minimal) json configuration:
 
 
-### Planned Development
-- make this client available inside docker (which may or may not include intelephense), so users do not need to install python
+```json
+{
+    "workingDirectory": "/var/www/html",
+    "outputFile": "/var/www/html/diagnostic-output.json",
+    "languageId": "php"
+}
+```
+
+
+- For complete json configuration, see documentation above
+- Example docker usage:
+
+```bash
+docker run --rm \
+  --name lsp-cli \
+  -v /home/kristian/www/my-php-project/intelephense-cli-config.json:/etc/intelephense-cli-config.json \
+  -v /home/kristian/www/my-php-project/web:/var/www/html \
+  krstian/intelephense-lspclientcli-python3-node22-alpine
+```
+
+
+- dockerhub: https://hub.docker.com/r/krstian/intelephense-lspclientcli-python3-node22-alpine

@@ -24,6 +24,29 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  intelephense-bundle-cli-client:
+    build:
+     context: .
+     dockerfile: Intelephense-Bundle-Cli-Client.Dockerfile
+    # image: krstian/intelephense-lspclientcli-python3-node22-alpine
+    container_name: intelephense-client
+    environment:
+      KEY: "value"
+    volumes:
+      - ./docker_volumes/home_kristian:/home/kristian
+      - /var/www/html:/var/www/html
+    #ports:
+    #  - "8000:8000"
+    network_mode: "host"
+    #depends_on:
+    #  - mssql
+    #networks:
+    #  - intelephense
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 
 
 #networks:
